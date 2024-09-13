@@ -1,6 +1,7 @@
 // Extend the button component
 
 import { useEffect, useState } from "react";
+import { logger } from "workbox-core/_private";
 
 interface Props extends React.ComponentPropsWithoutRef<"div"> {
     onLongPress?: () => void; // onClick will not be called if onLongPress is triggered

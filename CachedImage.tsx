@@ -1,10 +1,10 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useReducer, useMemo, useCallback, useState } from "react";
 import { default as defaultAxiosInstance } from '@/helpers/base/axios';
-import missingImage from "@/assets/missing-image.svg";
+import missingImage from "./ImageMissingImage.svg";
 import classNames from "classnames";
 import { AxiosInstance } from "axios";
 import { Buffer } from 'buffer';
-import { useInViewport, useOnScreen } from "@/helpers/base/helpers";
+import { useInViewport } from "@/helpers/base/helpers";
 
 const imageCache = new Map();
 const loadPromises = {};
