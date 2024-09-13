@@ -3,7 +3,7 @@ import { MdNotifications, MdClose } from 'react-icons/md';
 import { Transition } from '@headlessui/react';
 import { IonPopover } from '@ionic/react';
 import classNames from 'classnames';
-import axiosInstance, { Fetcher } from '@/helpers/base/axios';
+import axiosInstance, { Fetcher } from '@/helpers/shared/axios';
 import useSWR from 'swr';
 import { create } from 'zustand';
 

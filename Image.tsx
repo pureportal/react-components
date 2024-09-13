@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { default as defaultAxiosInstance } from '@/helpers/base/axios';
+import { default as defaultAxiosInstance } from '@/helpers/shared/axios';
 import missingImage from "./ImageMissingImage.svg";
 import classNames from "classnames";
 import { AxiosInstance } from "axios";
