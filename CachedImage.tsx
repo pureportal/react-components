@@ -1,255 +1,205 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useReducer, useMemo, useCallback, useState } from "react";
 import { default as defaultAxiosInstance } from '@/helpers/base/axios';
-import missingImage from "./ImageMissingImage.svg";
+import missingImage from "@/assets/missing-image.svg";
 import classNames from "classnames";
 import { AxiosInstance } from "axios";
 import { Buffer } from 'buffer';
-import logger from "./Logger";
+import { useInViewport, useOnScreen } from "@/helpers/base/helpers";
 
-// Constants
-const CACHE_EXPIRY_TIME = 5 * 60 * 1000; // 5 minutes
-const REFRESH_INTERVAL = 10000; // 10 seconds
-
-// Types
-interface CacheItem {
-    src: string;
-    data: string;
-    hash: string | null;
-    stillInUse: Date;
-}
-
-interface CacheState {
-    cache: CacheItem[];
-    ongoingLoads: string[];
-    lastUpdate?: number;
-}
-
-type CacheAction =
-    | { type: 'ADD_CACHE_ITEM'; payload: CacheItem }
-    | { type: 'REMOVE_CACHE_ITEM'; payload: string }
-    | { type: 'ADD_ONGOING_LOAD'; payload: string }
-    | { type: 'REMOVE_ONGOING_LOAD'; payload: string }
-    | { type: 'CLEANUP'; payload: number };
+const imageCache = new Map();
+const loadPromises = {};
+const CACHE_DURATION = 1000 * 60 * 15; // 15 minutes
 
 interface ImageProps extends React.ComponentPropsWithoutRef<"img"> {
-    axiosInstance?: AxiosInstance;
+    uniqueKey?: string;
     checkHash?: boolean;
     fallback?: string;
     fallbackElement?: React.ReactNode;
-    onImageError?: () => void;
-    onImageReady?: () => void;
+    axiosInstance?: AxiosInstance;
     problemHandling?: "fallback" | "hide" | "error";
-    uniqueKey?: string;
-    notInViewHandling?: "show" | "hide" | "remove_from_cache";
+    hideWhenNotVisible?: boolean;
+    onImageReady?: () => void;
+    onImageError?: () => void;
 }
-
 interface CachedImageRef {
     refresh: () => void;
 }
-
-// Reducer
-const cacheReducer = (state: CacheState, action: CacheAction): CacheState => {
-    switch (action.type) {
-        case 'ADD_CACHE_ITEM':
-            return { ...state, cache: [...state.cache.filter(item => item.src !== action.payload.src), action.payload] };
-        case 'REMOVE_CACHE_ITEM':
-            return { 
-                ...state, 
-                cache: state.cache.filter(item => item.src !== action.payload),
-                lastUpdate: Date.now()
-            };
-        case 'ADD_ONGOING_LOAD':
-            return { ...state, ongoingLoads: [...state.ongoingLoads, action.payload] };
-        case 'REMOVE_ONGOING_LOAD':
-            return { ...state, ongoingLoads: state.ongoingLoads.filter(item => item !== action.payload) };
-        case 'CLEANUP':
-            return { ...state, cache: state.cache.filter(item => item.stillInUse.getTime() > action.payload) };
-        default:
-            return state;
-    }
-};
-
 const CachedImage = forwardRef<CachedImageRef, ImageProps>(({
-    axiosInstance = defaultAxiosInstance,
     checkHash = true,
     fallback = missingImage,
+    axiosInstance = defaultAxiosInstance,
     fallbackElement,
-    onImageError,
-    onImageReady,
     problemHandling = "fallback",
-    notInViewHandling = "show",
+    hideWhenNotVisible = false,
+    onImageReady,
+    onImageError,
     ...props
 }, ref) => {
-    const [cacheState, dispatch] = useReducer(cacheReducer, { cache: [], ongoingLoads: [], lastUpdate: Date.now() });
-    const refreshTimer = useRef<NodeJS.Timeout | null>(null);
-    const imageRef = useRef<HTMLImageElement>(null);
-    const [isInView, setIsInView] = useState(false);
 
-    const loadImage = useCallback(async () => {
-        if (typeof props.src !== "string" || props.src.length <= 0 || cacheState.ongoingLoads.includes(props.src) || !isInView) {
-            return;
-        }
+    const [isTabVisible, setIsTabVisible] = useState(true);
+    const [imageSrc, setImageSrc] = React.useState<string | null>(null);
+    const [imageHash, setImageHash] = React.useState<string | null>(null);
+    const [loading, setLoading] = React.useState<boolean>(true);
 
-        try {
-            dispatch({ type: 'ADD_ONGOING_LOAD', payload: props.src });
+    const { isInViewport, ref: me } = useInViewport();
 
-            let image = cacheState.cache.find(item => item.src === props.src);
+    const handleVisibilityChange = useCallback(() => {
+        setIsTabVisible(document.visibilityState === 'visible');
+      }, []);
 
-            if (image) {
-                image.stillInUse = new Date();
-            }
+    useEffect(() => {
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => {
+          document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, []);
 
-            if (!checkHash && image) {
+    useEffect(() => {
+        let isMounted = true;
+
+        const load = async (force = false) => {
+
+            // Check if tab is visible
+            if (!isTabVisible || !isInViewport) {
                 return;
             }
 
-            let newHash = null;
-            if (checkHash) {
-                logger.debug('557a3144-b4f0-457d-b056-379c3a2d8b82', 'Checking hash for', props.src);
-                const response = await axiosInstance({
-                    method: 'GET',
-                    url: `${props.src}?hash`,
-                });
-                if (response.status === 200) {
-                    newHash = response.data.hash;
-                    if (image && image.hash === newHash) {
-                        return;
+            if (!force && (imageCache.has(props.src) && (!checkHash || imageCache.get(props.src).hash === imageHash))) {
+                const cachedData = imageCache.get(props.src);
+                if (cachedData && Date.now() - cachedData.added < CACHE_DURATION) {
+                    const { objectURL } = cachedData;
+
+                    if (isMounted) {
+                        setImageSrc(objectURL);
+                        setLoading(false);
                     }
-                } else if (response.status === 404) {
-                    dispatch({ type: 'REMOVE_CACHE_ITEM', payload: props.src });
-                    return;
-                } else {
-                    logger.error('0eae3593-11f2-410a-b767-e1f16d4b38af','An error occurred:', response);
-                    onImageError?.();
                     return;
                 }
             }
 
-            logger.debug('70a9eb4f-86b7-430b-873d-ed7322867703', 'Loading image:', props.src);
-            const response = await axiosInstance({
-                method: 'GET',
-                url: props.src,
-                responseType: 'arraybuffer',
-            });
-
-            if (response.status === 200) {
-                if(!isInView) {
-                    logger.info('70450322-be48-4050-adf5-ebfb0cf22415', 'Not in view anymore:', props.src);
-                    return;
-                }
-                const base64 = Buffer.from(response.data).toString('base64');
-                dispatch({
-                    type: 'ADD_CACHE_ITEM',
-                    payload: {
-                        src: props.src,
-                        data: 'data:;base64,' + base64,
-                        hash: newHash,
-                        stillInUse: new Date(),
-                    }
-                });
-                onImageReady?.();
-            } else if (response.status === 404) {
-                logger.warn('b73d912f-ef28-5a52-929a-6b18da7850e5', 'Image not found:', props.src);
-                dispatch({ type: 'REMOVE_CACHE_ITEM', payload: props.src });
-                onImageError?.();
+            if (loadPromises[props.src]) {
+                await loadPromises[props.src];
             } else {
-                logger.error('a966c2f5-c61f-402b-9fa1-9b98b5b8ad0c','An error occurred:', response);
-                onImageError?.();
-                // Retry after 10 seconds
-                setTimeout(loadImage, 2000); // 2 seconds
-            }
-        } catch (error) {
-            logger.error('5b753ddf-b235-489f-9973-c3933aba197f','An error occurred', error);
-            onImageError?.();
-        } finally {
-            dispatch({ type: 'REMOVE_ONGOING_LOAD', payload: props.src });
-        }
-    }, [props.src, checkHash, axiosInstance, onImageReady, onImageError, isInView]);
+                loadPromises[props.src] = new Promise<void>(async (resolve, reject) => {
+                    try {
+                        let hashFromServer = null;
+                        if (checkHash) {
+                            const response = await axiosInstance({
+                                method: 'GET',
+                                url: `${props.src}?hash`,
+                            });
+                            if(response.status === 200) {
+                                hashFromServer = response.data.hash;
+                                const cachedData = imageCache.get(props.src);
+                                if(cachedData && hashFromServer === cachedData.hash) {
+                                    resolve();
+                                    return;
+                                }
+                            }
+                        }
 
-    useEffect(() => {
-        const observer = new IntersectionObserver(
-            ([entry]) => {
-                if (entry.isIntersecting) {
-                    setIsInView(true);
-                } else {
-                    setIsInView(false);
-                    if(notInViewHandling === "remove_from_cache" && props.src) {
-                        logger.debug('7d75758c-c31d-4b2a-ae02-5c426c80c95f', 'Removing from cache because not in view:', props.src);
-                        //dispatch({ type: 'REMOVE_CACHE_ITEM', payload: props.src });
+                        console.log(`[CachedImage] Fetching ${props.src}`);
+                        const response = await axiosInstance({
+                            method: 'GET',
+                            url: `${props.src}`,
+                            responseType: 'arraybuffer',
+                        });
+                        if(response.status !== 200) {
+                            setLoading(false);
+                            setImageSrc(null);
+                            return
+                        }
+                        const blob = new Blob([Buffer.from(response.data)], { type: response.headers['content-type'] });
+                        const objectURL = URL.createObjectURL(blob);
+
+                        imageCache.set(props.src, { objectURL, hash: hashFromServer, added: Date.now() });
+                        if (isMounted) {
+                            setImageSrc(objectURL);
+                            setLoading(false);
+                        }
+                        resolve();
+                    } catch (error) {
+                        console.error(`Failed to load image from ${props.src}`, error);
+                        reject(error);
+                        if (isMounted) {
+                            setLoading(false);
+                        }
+                    } finally {
+                        delete loadPromises[props.src];
                     }
-                }
-            },
-            { threshold: 0.1 }
-        );
+                });
 
-        if (imageRef.current) {
-            observer.observe(imageRef.current);
-        }
+                await loadPromises[props.src];
+            }
 
-        return () => {
-            if (imageRef.current) {
-                observer.unobserve(imageRef.current);
+            if (isMounted) {
+                const { objectURL } = imageCache.get(props.src);
+                setImageSrc(objectURL);
+                setLoading(false);
             }
         };
-    }, [notInViewHandling, props.src]);
 
-    useEffect(() => {
-        if (isInView) {
-            refreshTimer.current = setInterval(loadImage, REFRESH_INTERVAL);
-            loadImage();
-        }
+        load();
+        const timer = setInterval(() => {
+            load(true);
+        }, 2000);
+
         return () => {
-            if (refreshTimer.current) {
-                clearInterval(refreshTimer.current);
-            }
+            isMounted = false;
+            clearInterval(timer);
         };
-    }, [loadImage, isInView]);
+    }, [props.src, imageHash, checkHash, axiosInstance, isTabVisible, isInViewport]);
 
     useEffect(() => {
-        dispatch({ type: 'CLEANUP', payload: Date.now() - CACHE_EXPIRY_TIME });
-    }, []);
+        // Check for new image - hash is different
+        const interval = setInterval(async () => {
+            const cachedData = imageCache.get(props.src);
+            if (cachedData && cachedData.hash !== imageHash) {
+                setImageSrc(cachedData.objectURL);
+                setLoading(false);
+            }
+        }, 500);
+
+        return () => clearInterval(interval);
+    }, [props.src, imageHash]);
 
     useImperativeHandle(ref, () => ({
-        refresh: loadImage
+        refresh: () => {
+            setImageSrc(null);
+            setLoading(true);
+        }
     }));
 
-    const image = useMemo(() => cacheState.cache.find(item => item.src === props.src)?.data ?? null, [cacheState.cache, props.src, cacheState.lastUpdate]);
-
     const renderImage = () => {
-        if (!isInView && notInViewHandling === "hide") {
-            return <div ref={imageRef} style={{ height: '1px', width: '1px' }} />;
-        }
-        
-        if (image !== null) {
-            return <img ref={imageRef} {...props} src={image} alt={props.alt} loading="lazy" />;
-        } else if (typeof props.src === "string" && cacheState.ongoingLoads.includes(props.src) && image === null) {
+        if (imageSrc !== null) {
+            return <img {...props} src={imageSrc} alt={props.alt} loading="lazy" className={classNames("overflow-hidden", props.className)} />;
+        } else if (loading) {
             return (
-                <div ref={imageRef} className={classNames("flex justify-center items-center", props.className)} aria-busy="true" role="img">
-                    <div className="absolute inset-0">
-                        <div className="w-full h-full bg-gray-300 animate-pulse" />
-                    </div>
+                <div className={classNames("relative flex justify-center items-center overflow-hidden", props.className)} aria-busy="true" role="img">
+                    <div className="absolute top-0 left-0 w-full h-full bg-gray-300 animate-pulse"></div>
                 </div>
             );
-        } else if (typeof props.src !== "string" || image === null) {
+        } else {
             if (problemHandling === "hide") {
                 return null;
             } else if (problemHandling === "error") {
                 throw new Error("Image not found: " + props.src);
             } else {
                 if (fallbackElement) {
-                    return React.cloneElement(fallbackElement as React.ReactElement, { ref: imageRef });
+                    return <div>{fallbackElement}</div>;
                 }
-                return <img ref={imageRef} {...props} src={fallback ?? missingImage} alt={props.alt} loading="lazy" />;
+                return <img {...props} src={fallback ?? missingImage} alt={props.alt} loading="lazy" className={classNames("overflow-hidden", props.className)} />;
             }
-        } else {
-            return <img ref={imageRef} {...props} src={image} alt={props.alt} loading="lazy" />;
         }
     };
 
     try {
-        return renderImage();
+        return <>
+            <div ref={me} className="relative" /> {/* Dot above the image to check if it's in viewport */}
+            {hideWhenNotVisible && !isInViewport ? null : renderImage()}
+        </>
     } catch (error) {
-        logger.error('0ebf9d75-d047-411b-a061-3fddea182fd9','Error rendering image:', error);
+        console.error('Error rendering image:', error);
         onImageError?.();
         return null;
     }
