@@ -39,11 +39,26 @@ const useLoggerStore = create<useLoggerStoreType>((set) => ({
 }));
 
 const logger = {
-    debug: (id: string, ...args: any) => useLoggerStore.getState().addLog(id, 'debug', ...args),
-    info: (id: string, ...args: any) => useLoggerStore.getState().addLog(id, 'info', ...args),
-    warn: (id: string, ...args: any) => useLoggerStore.getState().addLog(id, 'warn', ...args),
-    error: (id: string, ...args: any) => useLoggerStore.getState().addLog(id, 'error', ...args),
-    success: (id: string, ...args: any) => useLoggerStore.getState().addLog(id, 'success', ...args),
+    debug: (id: string, ...args: any) => {
+        console.log('debug', id, args);
+        useLoggerStore.getState().addLog(id, 'debug', ...args);
+    },
+    info: (id: string, ...args: any) => {
+        console.log('info', id, args);
+        useLoggerStore.getState().addLog(id, 'info', ...args); 
+    },
+    warn: (id: string, ...args: any) => {
+        console.warn('warn', id, args);
+        useLoggerStore.getState().addLog(id, 'warn', ...args);
+    },
+    error: (id: string, ...args: any) => {
+        console.error('error', id, args);
+        useLoggerStore.getState().addLog(id, 'error', ...args);
+    },
+    success: (id: string, ...args: any) => {
+        console.log('success', id, args);
+        useLoggerStore.getState().addLog(id, 'success', ...args);
+    },
     clear: () => useLoggerStore.getState().clearLogs(),
     export: () => {
         const logs = useLoggerStore.getState().logs;
