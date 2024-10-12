@@ -6,7 +6,7 @@ import classNames from 'classnames';
 import axiosInstance, { Fetcher } from '@/helpers/shared/axios';
 import useSWR from 'swr';
 import { create } from 'zustand';
-import { FaCheck, FaExclamation, FaQuestion, FaTimes } from 'react-icons/fa';
+import { FaCheck, FaExclamation, FaInfo, FaQuestion, FaTimes } from 'react-icons/fa';
 
 interface useNotificationStoreType {
     visible: boolean;
@@ -68,6 +68,19 @@ const iconEffect = (type: 'success' | 'info' | 'warning' | 'error') => {
         case 'error':
             setTimeout(() => setShowErrorIcon(true), 0);
             break;
+    }
+}
+
+const getFittingColour = (type: 'success' | 'info' | 'warning' | 'error') => {
+    switch (type) {
+        case 'success':
+            return 'bg-green-500';
+        case 'info':
+            return 'bg-blue-500';
+        case 'warning':
+            return 'bg-yellow-500';
+        case 'error':
+            return 'bg-red-500';
     }
 }
 
@@ -151,19 +164,25 @@ const NotificationsComponent = () => {
                         <div
                             key={notification.id}
                             className={classNames(
-                                "flex flex-col items-center px-4 py-3 border-b border-gray-200 hover:bg-gray-50",
-                                { "bg-primary-1 text-primary-1-text hover:bg-primary-1-hover": !notification.read }
+                                "flex flex-col items-center px-4 py-3 border-b border-gray-200 hover:bg-gray-50 cursor-pointer",
+                                notification.read ? 'bg-gray-100' : 'hover:bg-gray-100',
                             )}
+                            onClick={() => markAsRead(notification.id)}
                         >
                             <div
-                                className='flex flex-row justify-between w-full items-center cursor-pointer'
-                                onClick={() => markAsRead(notification.id)}
+                                className='flex flex-row justify-between w-full items-center'
                             >
-                                <div className="flex-shrink-0">
-                                    <MdNotifications className="h-6 w-6 text-gray-400" />
+                                <div className="flex-shrink-0 text-center">
+                                    {notification.type === 'success' && <FaCheck className="h-6 w-6 text-green-500" />}
+                                    {notification.type === 'info' && <FaInfo className="h-6 w-6 text-blue-500" />}
+                                    {notification.type === 'warning' && <FaExclamation className="h-6 w-6 text-yellow-500" />}
+                                    {notification.type === 'error' && <FaTimes className="h-6 w-6 text-red-500" />}
                                 </div>
                                 <div className="ml-3 w-0 flex-1">
-                                    <p className="text-sm font-medium">
+                                    <p className={classNames(
+                                        "text-base font-semibold",
+                                        notification.read ? 'text-gray-500' : 'text-gray-900',
+                                    )}>
                                         {notification.title}
                                     </p>
                                     <p className="text-sm text-gray-500">{notification.body}</p>
