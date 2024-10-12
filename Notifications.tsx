@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { MdNotifications, MdClose } from 'react-icons/md';
 import { Transition } from '@headlessui/react';
 import { IonPopover } from '@ionic/react';
@@ -6,17 +6,70 @@ import classNames from 'classnames';
 import axiosInstance, { Fetcher } from '@/helpers/shared/axios';
 import useSWR from 'swr';
 import { create } from 'zustand';
+import { FaCheck, FaExclamation, FaQuestion, FaTimes } from 'react-icons/fa';
 
 interface useNotificationStoreType {
     visible: boolean;
+    showSuccessIcon: boolean;
+    showInfoIcon: boolean;
+    showWarningIcon: boolean;
+    showErrorIcon: boolean;
     hide: () => void;
     show: () => void;
+    setShowSuccessIcon: (value: boolean) => void;
+    setShowInfoIcon: (value: boolean) => void;
+    setShowWarningIcon: (value: boolean) => void;
+    setShowErrorIcon: (value: boolean) => void;
 }
 const useNotificationStore = create<useNotificationStoreType>((set) => ({
     visible: false,
+    showSuccessIcon: false,
+    showInfoIcon: false,
+    showWarningIcon: false,
+    showErrorIcon: false,
     hide: () => { set({ visible: false }) },
     show: () => { set({ visible: true }) },
+    setShowSuccessIcon: (value) => { set({ showSuccessIcon: value }) },
+    setShowInfoIcon: (value) => { set({ showInfoIcon: value }) },
+    setShowWarningIcon: (value) => { set({ showWarningIcon: value }) },
+    setShowErrorIcon: (value) => { set({ showErrorIcon: value }) },
 }));
+
+function getWorstUnreadColor (notifications) {
+    const filtered = notifications.filter((notification) => !notification.read);
+    if (filtered.length === 0) return 'text-gray-200';
+    if (filtered.some((notification) => notification.type === 'error')) return 'text-red-500';
+    if (filtered.some((notification) => notification.type === 'warning')) return 'text-yellow-500';
+    if (filtered.some((notification) => notification.type === 'info')) return 'text-blue-500';
+    if (filtered.some((notification) => notification.type === 'success')) return 'text-green-500';
+    return 'text-yellow-500';
+}
+
+// Hook to toggle icon effects
+const iconEffect = (type: 'success' | 'info' | 'warning' | 'error') => {
+    const { setShowSuccessIcon, setShowInfoIcon, setShowWarningIcon, setShowErrorIcon } = useNotificationStore.getState();
+
+    // Unset all
+    setShowSuccessIcon(false);
+    setShowInfoIcon(false);
+    setShowWarningIcon(false);
+    setShowErrorIcon(false);
+
+    switch (type) {
+        case 'success':
+            setTimeout(() => setShowSuccessIcon(true), 0);
+            break;
+        case 'info':
+            setTimeout(() => setShowInfoIcon(true), 0);
+            break;
+        case 'warning':
+            setTimeout(() => setShowWarningIcon(true), 0);
+            break;
+        case 'error':
+            setTimeout(() => setShowErrorIcon(true), 0);
+            break;
+    }
+}
 
 const NotificationsComponent = () => {
     // States
@@ -58,11 +111,12 @@ const NotificationsComponent = () => {
     return (
         <div
             className={classNames(
-                'absolute top-0 right-0 bottom-0 left-0 z-10 flex justify-center items-center bg-gray-900 bg-opacity-50 transition-opacity duration-300',
+                'absolute top-0 right-0 bottom-0 left-0 z-50 flex justify-center items-center bg-gray-900 bg-opacity-50 transition-opacity duration-300',
                 visible ? 'opacity-100 cursor-pointer' : 'opacity-0 pointer-events-none cursor-auto'
             )}
             onClick={(e) => { hide(); e.stopPropagation(); }}
         >
+            {/* Notifications */}
             <div
                 className="w-full bg-white rounded-md shadow-lg overflow-hidden z-20 p-2 flex flex-col max-w-full max-h-full m-12 cursor-default md:max-w-3xl lg:max-w-4xl h-80"
                 onClick={(e) => e.stopPropagation()}
@@ -128,6 +182,58 @@ const NotificationsComponent = () => {
     );
 };
 
+const NotificationsIcon = () => {
+    const { data: notifications, mutate } = useSWR({ url: 'notifications' }, Fetcher);
+    const { show, showSuccessIcon, showInfoIcon, showWarningIcon, showErrorIcon } = useNotificationStore();
+
+    return (
+        <div
+            className="relative"
+        >
+            {/* Notifications icon */}
+            <MdNotifications
+                className={classNames(
+                    "h-8 w-8 cursor-pointer",
+                    // Colorize the icon if there are unread notifications
+                    notifications?.filter((notification) => !notification.read).length ? getWorstUnreadColor(notifications) : 'text-gray-400',
+                    // Add shake animation if there are unread notifications
+                    notifications?.filter((notification) => !notification.read).length ? 'shake' : ''
+                )}
+                onClick={show}
+            />
+
+            {showSuccessIcon && (
+                <div
+                    className="absolute left-0 top-0 bottom-0 right-0 move-from-center-to-left h-8 w-8 bg-green-500 text-white flex justify-center items-center rounded-full"
+                >
+                    <FaCheck className="h-6 w-6" />
+                </div>
+            )}
+            {showInfoIcon && (
+                <div
+                    className="absolute left-0 top-0 bottom-0 right-0 move-from-center-to-left h-8 w-8 bg-blue-500 text-white flex justify-center items-center rounded-full"
+                >
+                    <FaQuestion className="h-6 w-6" />
+                </div>
+            )}
+            {showWarningIcon && (
+                <div
+                    className="absolute left-0 top-0 bottom-0 right-0 move-from-center-to-left h-8 w-8 bg-yellow-500 text-white flex justify-center items-center rounded-full"
+                >
+                    <FaExclamation className="h-6 w-6" />
+                </div>
+            )}
+            {showErrorIcon && (
+                <div
+                    className="absolute left-0 top-0 bottom-0 right-0 move-from-center-to-left h-8 w-8 bg-red-500 text-white flex justify-center items-center rounded-full"
+                >
+                    <FaTimes className="h-6 w-6" />
+                </div>
+            )}
+        </div>
+    );
+};
+
 export default NotificationsComponent;
-export { useNotificationStore, NotificationsComponent };
+export { useNotificationStore, NotificationsComponent, NotificationsIcon, iconEffect };
 export type { useNotificationStoreType };
