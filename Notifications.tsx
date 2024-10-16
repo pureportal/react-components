@@ -35,6 +35,36 @@ const useNotificationStore = create<useNotificationStoreType>((set) => ({
     setShowErrorIcon: (value) => { set({ showErrorIcon: value }) },
 }));
 
+// Subscribe and reset the icon effects
+useNotificationStore.subscribe(
+    (showSuccessIcon) => {
+        if (showSuccessIcon) {
+            setTimeout(() => useNotificationStore.setState({ showSuccessIcon: false }), 5000);
+        }
+    },
+);
+useNotificationStore.subscribe(
+    (showInfoIcon) => {
+        if (showInfoIcon) {
+            setTimeout(() => useNotificationStore.setState({ showInfoIcon: false }), 5000);
+        }
+    },
+);
+useNotificationStore.subscribe(
+    (showWarningIcon) => {
+        if (showWarningIcon) {
+            setTimeout(() => useNotificationStore.setState({ showWarningIcon: false }), 5000);
+        }
+    },
+);
+useNotificationStore.subscribe(
+    (showErrorIcon) => {
+        if (showErrorIcon) {
+            setTimeout(() => useNotificationStore.setState({ showErrorIcon: false }), 5000);
+        }
+    },
+);
+
 function getWorstUnreadColor (notifications) {
     const filtered = notifications.filter((notification) => !notification.read);
     if (filtered.length === 0) return 'text-gray-200';
