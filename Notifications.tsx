@@ -36,31 +36,47 @@ const useNotificationStore = create<useNotificationStoreType>((set) => ({
 }));
 
 // Subscribe and reset the icon effects
+let resetSuccessIconTimeout: NodeJS.Timeout | null = null;
 useNotificationStore.subscribe(
     (showSuccessIcon) => {
+        if (resetSuccessIconTimeout) {
+            clearTimeout(resetSuccessIconTimeout);
+        }
         if (showSuccessIcon) {
-            setTimeout(() => useNotificationStore.setState({ showSuccessIcon: false }), 5000);
+            resetSuccessIconTimeout = setTimeout(() => useNotificationStore.setState({ showSuccessIcon: false }), 3000);
         }
     },
 );
+let resetInfoIconTimeout: NodeJS.Timeout | null = null;
 useNotificationStore.subscribe(
     (showInfoIcon) => {
+        if (resetInfoIconTimeout) {
+            clearTimeout(resetInfoIconTimeout);
+        }
         if (showInfoIcon) {
-            setTimeout(() => useNotificationStore.setState({ showInfoIcon: false }), 5000);
+            setTimeout(() => useNotificationStore.setState({ showInfoIcon: false }), 3000);
         }
     },
 );
+let resetWarningIconTimeout: NodeJS.Timeout | null = null;
 useNotificationStore.subscribe(
     (showWarningIcon) => {
+        if (resetWarningIconTimeout) {
+            clearTimeout(resetWarningIconTimeout);
+        }
         if (showWarningIcon) {
-            setTimeout(() => useNotificationStore.setState({ showWarningIcon: false }), 5000);
+            setTimeout(() => useNotificationStore.setState({ showWarningIcon: false }), 3000);
         }
     },
 );
+let resetErrorIconTimeout: NodeJS.Timeout | null = null;
 useNotificationStore.subscribe(
     (showErrorIcon) => {
+        if (resetErrorIconTimeout) {
+            clearTimeout(resetErrorIconTimeout);
+        }
         if (showErrorIcon) {
-            setTimeout(() => useNotificationStore.setState({ showErrorIcon: false }), 5000);
+            setTimeout(() => useNotificationStore.setState({ showErrorIcon: false }), 3000);
         }
     },
 );
