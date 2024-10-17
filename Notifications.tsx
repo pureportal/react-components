@@ -38,7 +38,8 @@ const useNotificationStore = create<useNotificationStoreType>((set) => ({
 // Subscribe and reset the icon effects
 let resetSuccessIconTimeout: NodeJS.Timeout | null = null;
 useNotificationStore.subscribe(
-    (showSuccessIcon) => {
+    ({showSuccessIcon}, {showSuccessIcon: previousShowSuccessIcon}) => {
+        if(previousShowSuccessIcon === showSuccessIcon) return;
         if (resetSuccessIconTimeout) {
             clearTimeout(resetSuccessIconTimeout);
         }
@@ -49,34 +50,37 @@ useNotificationStore.subscribe(
 );
 let resetInfoIconTimeout: NodeJS.Timeout | null = null;
 useNotificationStore.subscribe(
-    (showInfoIcon) => {
+    ({showInfoIcon}, {showInfoIcon: previousShowInfoIcon}) => {
+        if(showInfoIcon === previousShowInfoIcon) return;
         if (resetInfoIconTimeout) {
             clearTimeout(resetInfoIconTimeout);
         }
         if (showInfoIcon) {
-            setTimeout(() => useNotificationStore.setState({ showInfoIcon: false }), 3000);
+            resetInfoIconTimeout = setTimeout(() => useNotificationStore.setState({ showInfoIcon: false }), 3000);
         }
     },
 );
 let resetWarningIconTimeout: NodeJS.Timeout | null = null;
 useNotificationStore.subscribe(
-    (showWarningIcon) => {
+    ({showWarningIcon}, {showWarningIcon: previousShowWarningIcon}) => {
+        if(showWarningIcon === previousShowWarningIcon) return;
         if (resetWarningIconTimeout) {
             clearTimeout(resetWarningIconTimeout);
         }
         if (showWarningIcon) {
-            setTimeout(() => useNotificationStore.setState({ showWarningIcon: false }), 3000);
+            resetWarningIconTimeout = setTimeout(() => useNotificationStore.setState({ showWarningIcon: false }), 3000);
         }
     },
 );
 let resetErrorIconTimeout: NodeJS.Timeout | null = null;
 useNotificationStore.subscribe(
-    (showErrorIcon) => {
+    ({showErrorIcon}, {showErrorIcon: previousShowErrorIcon}) => {
+        if(showErrorIcon === previousShowErrorIcon) return
         if (resetErrorIconTimeout) {
             clearTimeout(resetErrorIconTimeout);
         }
         if (showErrorIcon) {
-            setTimeout(() => useNotificationStore.setState({ showErrorIcon: false }), 3000);
+            resetErrorIconTimeout = setTimeout(() => useNotificationStore.setState({ showErrorIcon: false }), 3000);
         }
     },
 );
